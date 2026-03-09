@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Python CLI utility that reorganizes files of a given extension into grouped, prefix-based directory trees. It flattens parent directory paths into filenames using underscores, and chunks the concatenated path characters into nested directories of a configurable size.
+A CLI utility that reorganizes files of a given extension into grouped, prefix-based directory trees. It flattens parent directory paths into filenames using underscores, and chunks the concatenated path characters into nested directories of a configurable size.
 
 It supports two modes:
 
@@ -142,17 +142,17 @@ To change the prefix-length of an already-organized directory, use `--reverse` w
 
 ```bash
 # Single-pass regroup from current chunking to prefix-length 3
-python3 trieshake.py /data -e .txt --reverse -p 3 --execute
+trieshake /data -e .txt --reverse -p 3 --execute
 ```
 
 This is equivalent to, but more convenient than, the two-step approach:
 
 ```bash
 # Step 1: Reverse — strip prefixes from filenames
-python3 trieshake.py /data -e .txt --reverse --execute
+trieshake /data -e .txt --reverse --execute
 
 # Step 2: Forward — re-chunk at new prefix-length
-python3 trieshake.py /data -e .txt -p 3 --execute
+trieshake /data -e .txt -p 3 --execute
 ```
 
 ---
@@ -203,7 +203,7 @@ After all moves complete, the script verifies that every file in the move plan e
 ## CLI Interface
 
 ```
-trieshake.py [-h] -e EXTENSION [-p PREFIX_LENGTH] [--reverse] [--execute] directory
+trieshake [-h] -e EXTENSION [-p PREFIX_LENGTH] [--reverse] [--execute] directory
 ```
 
 ### Positional arguments
@@ -232,32 +232,32 @@ trieshake.py [-h] -e EXTENSION [-p PREFIX_LENGTH] [--reverse] [--execute] direct
 
 ```bash
 # Forward dry run (preview, no changes)
-python3 trieshake.py /data -e .txt
+trieshake /data -e .txt
 
 # Forward execute with default prefix-length (4)
-python3 trieshake.py /data -e .txt --execute
+trieshake /data -e .txt --execute
 
 # Forward execute with prefix-length 3
-python3 trieshake.py /data -e .txt -p 3 --execute
+trieshake /data -e .txt -p 3 --execute
 
 # Reverse dry run — strip prefixes only (preview)
-python3 trieshake.py /data -e .txt --reverse
+trieshake /data -e .txt --reverse
 
 # Reverse execute — strip prefixes, restore plain leafnames
-python3 trieshake.py /data -e .txt --reverse --execute
+trieshake /data -e .txt --reverse --execute
 
 # Reverse with regroup — single-pass regroup from current chunking to prefix-length 3
-python3 trieshake.py /data -e .txt --reverse -p 3 --execute
+trieshake /data -e .txt --reverse -p 3 --execute
 
 # Equivalent two-step regroup (same result as above)
-python3 trieshake.py /data -e .txt --reverse --execute
-python3 trieshake.py /data -e .txt -p 3 --execute
+trieshake /data -e .txt --reverse --execute
+trieshake /data -e .txt -p 3 --execute
 
 # Export plan to CSV for review before executing
-python3 trieshake.py /data -e .txt -p 3 --output-plan plan.csv
+trieshake /data -e .txt -p 3 --output-plan plan.csv
 
 # Export plan and execute in one command
-python3 trieshake.py /data -e .txt -p 3 --output-plan plan.csv --execute
+trieshake /data -e .txt -p 3 --output-plan plan.csv --execute
 ```
 
 ---
@@ -348,13 +348,13 @@ The plan file is **output-only**. It cannot be fed back into trieshake as input.
 
 ```bash
 # Generate a plan for review
-python3 trieshake.py /data -e .txt --output-plan plan.csv
+trieshake /data -e .txt --output-plan plan.csv
 
 # Inspect the plan
 # (open in Excel, sort/filter, check for surprises)
 
 # If satisfied, execute
-python3 trieshake.py /data -e .txt --execute
+trieshake /data -e .txt --execute
 ```
 
 ### Behaviour
