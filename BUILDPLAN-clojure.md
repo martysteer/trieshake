@@ -8,10 +8,6 @@ Claude Code to follow as a step-by-step implementation guide.
 
 **Zero external dependencies: Clojure core only.**
 
-Babashka compatibility is a secondary goal — the implementation should
-avoid unnecessary Java interop so it can also run via `bb` for instant
-startup.
-
 ---
 
 ## Architecture
@@ -59,7 +55,6 @@ CLI args
 ```
 trieshake-clj/
 ├── project.clj
-├── bb.edn              # Babashka entry point (optional)
 ├── src/
 │   └── trieshake/
 │       ├── core.clj    # entry point, CLI parsing
@@ -107,12 +102,6 @@ During development:
 
 ```bash
 lein run /data -e .txt -p 4 --execute
-```
-
-Babashka (if compatible):
-
-```bash
-bb -m trieshake.core /data -e .txt -p 4 --execute
 ```
 
 ---
@@ -271,9 +260,6 @@ Helper for temp dirs:
 - Hand-roll CSV writing: quote fields, join with commas, write with
   `spit`. No external library needed.
 - Use `clojure.test` with `is` and `testing`.
-- For Babashka compatibility: avoid Java interop beyond `java.io`
-  and `java.nio.file`. A `bb.edn` file can provide the entry point
-  alongside the lein project.
 
 ### Commit strategy
 
