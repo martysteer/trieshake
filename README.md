@@ -36,23 +36,31 @@ trieshake treats the filesystem as a [radix trie](https://en.wikipedia.org/wiki/
 
 Collisions (when different source paths produce the same target) are handled with `--collisionN` filename suffixes. In practice, collisions only occur when source directories have variable-width segments that concatenate ambiguously.
 
-## Installation
+## Implementations
+
+Two implementations, same spec, same behaviour:
+
+### Python
 
 ```bash
-# Install from source (editable/development mode)
+cd python
 pip install -e .
-
-# Or install directly
-pip install .
+trieshake /data -e .txt -p 4 --execute
 ```
 
-Once installed, the `trieshake` command is available. You can also run it as a module:
+Requires Python 3.9+. Zero external dependencies.
+
+### Clojure
 
 ```bash
-python -m trieshake --help
+cd clojure
+lein uberjar
+java -jar target/trieshake-0.1.0-standalone.jar /data -e .txt -p 4 --execute
 ```
 
-Requires Python 3.9+.
+Or during development: `lein run /data -e .txt -p 4 --execute`
+
+Zero external dependencies (Clojure core only).
 
 ## Usage
 
@@ -89,12 +97,30 @@ trieshake /data -e .txt -p 4 --no-encode-leafname --execute
 
 ## Docs
 
-- **[SPEC.md](./synthetic-build-docs/SPEC.md)** — Full specification with worked examples and edge cases
-- **[BUILDPLAN-python.md](./synthetic-build-docs/BUILDPLAN-python.md)** — Python implementation plan
-- **[BUILDPLAN-clojure.md](./synthetic-build-docs/BUILDPLAN-clojure.md)** — Clojure implementation plan
+- **[SPEC.md](SPEC.md)** — Full specification with worked examples and edge cases
+- **[BUILDPLAN-python.md](BUILDPLAN-python.md)** — Python implementation plan
+- **[BUILDPLAN-clojure.md](BUILDPLAN-clojure.md)** — Clojure implementation plan
+
+## Repo structure
+
+```
+trieshake/
+├── SPEC.md                  # Language-agnostic specification
+├── BUILDPLAN-python.md      # Python build plan
+├── BUILDPLAN-clojure.md     # Clojure build plan
+├── README.md
+├── python/                  # Python implementation
+│   ├── pyproject.toml
+│   ├── trieshake/
+│   └── tests/
+└── clojure/                 # Clojure implementation
+    ├── project.clj
+    ├── src/trieshake/
+    └── test/trieshake/
+```
 
 ## License
 
 [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
-Author(s): martysteer and Claude Opus 4.6
+Author(s): martysteer and Claude
