@@ -347,3 +347,123 @@ class TestExtensionOptionalIntegration:
             assert result == 0
             assert (base / "AB/CD/AB_CD_data.txt").exists()
             assert (base / "AB/CD/AB_CD_image.png").exists()
+
+
+class TestEdgeCasesIntegration:
+    """Integration tests for edge cases and hardening."""
+
+    def test_root_level_files_forward(self):
+        """Root-level files use filename stem as concat string."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "mydata.txt", "root")
+
+            result = main(["--execute", "-e", ".txt", "-p", "3", str(base)])
+
+            assert result == 0
+            assert (base / "myd/ata/myd_ata_mydata.txt").exists()
+            assert (base / "myd/ata/myd_ata_mydata.txt").read_text() == "root"
+
+    def test_underscores_in_leafname_roundtrip(self):
+        """Underscores in original leafname survive forward -> reverse."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/my_data_file.txt", "underscores")
+
+            # Forward
+            main(["--execute", "-e", ".txt", "-p", "4", str(base)])
+            assert (base / "ABCD/ABCD_my_data_file.txt").exists()
+
+            # Reverse
+            main(["--reverse", "--execute", "-e", ".txt", str(base)])
+            assert (base / "ABCD/my_data_file.txt").exists()
+            assert (base / "ABCD/my_data_file.txt").read_text() == "underscores"
+
+    def test_hidden_files_ignored(self):
+        """Hidden files like .DS_Store are not processed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.txt")
+            _create_file(base, "AB/CD/.DS_Store", "hidden")
+
+            result = main(["--execute", "-e", ".txt", "-p", "2", str(base)])
+
+            assert result == 0
+            assert (base / "AB/CD/AB_CD_data.txt").exists()
+            # .DS_Store should not be moved or renamed
+
+    def test_empty_directory_not_left_behind(self):
+        """After moves, directories with only hidden files are cleaned up."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.txt")
+            _create_file(base, "AB/CD/.DS_Store", "hidden")
+
+            main(["--execute", "-e", ".txt", "-p", "4", str(base)])
+
+            # AB/CD had only data.txt (matching) and .DS_Store (hidden)
+            # After moving data.txt, AB/CD should be cleaned up
+            assert not (base / "AB/CD").exists()
+
+    def test_multi_extension_forward_and_reverse(self):
+        """Multi-part extensions like .mets.xml work correctly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "BL/00/01/record.mets.xml", "multi")
+
+            # Forward
+            main(["--execute", "-e", ".mets.xml", "-p", "3", str(base)])
+            assert (base / "BL0/001/BL0_001_record.mets.xml").exists()
+
+            # Reverse
+            main(["--reverse", "--execute", "-e", ".mets.xml", str(base)])
+            assert (base / "BL0/001/record.mets.xml").exists()
+            assert (base / "BL0/001/record.mets.xml").read_text() == "multi"
+
+    def test_extension_case_insensitive(self):
+        """Extension matching is case-insensitive."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.TXT", "upper")
+
+            result = main(["--execute", "-e", ".txt", "-p", "2", str(base)])
+
+            assert result == 0
+            assert (base / "AB/CD/AB_CD_data.TXT").exists()
+
+    def test_collision_forward_then_reverse_strips_suffix(self):
+        """Collision files from forward mode have suffixes stripped in reverse."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.txt", "first")
+            _create_file(base, "A/BCD/data.txt", "second")
+
+            # Forward — produces collision
+            main(["--execute", "-e", ".txt", "-p", "4", str(base)])
+            assert (base / "ABCD/ABCD_data.txt").exists()
+            assert (base / "ABCD/ABCD_data--collision1.txt").exists()
+
+            # Reverse — collision suffix stripped
+            main(["--reverse", "--execute", "-e", ".txt", str(base)])
+            # Both try to become data.txt — second gets new collision
+            assert (base / "ABCD/data.txt").exists()
+
+    def test_invalid_directory_returns_error(self):
+        """Non-existent directory returns exit code 1."""
+        result = main(["--execute", "-e", ".txt", "/nonexistent/path"])
+        assert result == 1
+
+    def test_large_scale_file_count(self):
+        """Generate many files and verify counts match."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            for i in range(100):
+                group = f"{i:04d}"
+                _create_file(base, f"G{group[:2]}/{group[2:]}/file_{i}.txt", f"data{i}")
+
+            result = main(["--execute", "-e", ".txt", "-p", "3", str(base)])
+            assert result == 0
+
+            # Count all .txt files in result
+            txt_files = list(base.rglob("*.txt"))
+            assert len(txt_files) == 100

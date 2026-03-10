@@ -279,6 +279,103 @@ class TestNoEncodeLeafname:
         assert result.target_dir == PurePosixPath("ABC/D")
 
 
+# === Edge case tests ===
+
+
+class TestEdgeCases:
+    """Tests for edge cases from SPEC and Phase 4."""
+
+    def test_forward_root_file_short_stem(self):
+        """Root-level file with stem shorter than prefix length."""
+        result = compute_target(
+            PurePosixPath("ab.txt"),
+            prefix_length=4,
+            extension=".txt",
+        )
+        assert result.concat_string == "ab"
+        assert result.chunks == ["ab"]
+        assert result.target_dir == PurePosixPath("ab")
+        assert result.target_filename == "ab_ab.txt"
+
+    def test_forward_root_file_multi_extension(self):
+        """Root-level file with multi-part extension."""
+        result = compute_target(
+            PurePosixPath("record.mets.xml"),
+            prefix_length=3,
+            extension=".mets.xml",
+        )
+        assert result.concat_string == "record"
+        assert result.chunks == ["rec", "ord"]
+        assert result.leafname == "record.mets.xml"
+
+    def test_forward_underscores_in_leafname(self):
+        """Underscores in original leafname are preserved."""
+        result = compute_target(
+            PurePosixPath("AB/CD/my_data_file.txt"),
+            prefix_length=4,
+            extension=".txt",
+        )
+        assert result.leafname == "my_data_file.txt"
+        assert result.target_filename == "ABCD_my_data_file.txt"
+
+    def test_reverse_underscores_roundtrip(self):
+        """Underscores in leafname survive forward -> reverse."""
+        forward = compute_target(
+            PurePosixPath("AB/CD/my_data.txt"),
+            prefix_length=4,
+            extension=".txt",
+        )
+        # Forward produces: ABCD/ABCD_my_data.txt
+        reverse = compute_reverse_target(
+            forward.target_dir / forward.target_filename,
+            extension=".txt",
+        )
+        assert reverse is not None
+        assert reverse.leafname == "my_data.txt"
+
+    def test_concat_string_single_segment(self):
+        """Single parent segment produces single chunk."""
+        result = compute_target(
+            PurePosixPath("A/file.txt"),
+            prefix_length=4,
+            extension=".txt",
+        )
+        assert result.concat_string == "A"
+        assert result.chunks == ["A"]
+
+    def test_collision_suffix_no_extension(self):
+        """Collision suffix on file with no extension."""
+        from trieshake.planner import _collision_filename
+
+        assert _collision_filename("Makefile", "", 1) == "Makefile--collision1"
+
+    def test_collision_suffix_multiple_dots(self):
+        """Collision suffix on file like archive.tar.gz."""
+        from trieshake.planner import _collision_filename
+
+        result = _collision_filename("archive.tar.gz", ".tar.gz", 2)
+        assert result == "archive--collision2.tar.gz"
+
+    def test_reverse_multiple_collision_suffixes_stripped(self):
+        """Only one --collisionN is present; it gets stripped."""
+        result = compute_reverse_target(
+            PurePosixPath("AB/AB_data--collision3.txt"),
+            extension=".txt",
+        )
+        assert result is not None
+        assert result.leafname == "data.txt"
+
+    def test_forward_empty_extension_matches_all(self):
+        """Forward with empty extension uses stem as concat for root files."""
+        result = compute_target(
+            PurePosixPath("AB/CD/Makefile"),
+            prefix_length=4,
+            extension="",
+        )
+        assert result.leafname == "Makefile"
+        assert result.concat_string == "ABCD"
+
+
 def _make_plan(source, target, extension=""):
     """Helper to create a minimal plan entry for collision testing."""
     from trieshake.planner import PlanEntry
