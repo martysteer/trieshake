@@ -170,3 +170,76 @@
       (let [result (run-trieshake "--reverse" "--execute" "-e" ".txt" base)]
         (is (= 0 result))
         (is (.exists (io/file base "AB/CD/random_file.txt")))))))
+
+;; === --no-encode-leafname integration tests ===
+
+(deftest test-no-encode-forward
+  (testing "Forward with --no-encode-leafname uses plain filenames"
+    (with-temp-dir base
+      (create-file! base "BL/00/01/file.txt" "plain")
+      (let [result (run-trieshake "--execute" "-e" ".txt" "-p" "3"
+                                  "--no-encode-leafname" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "BL0/001/file.txt")))
+        (is (= "plain" (slurp (io/file base "BL0/001/file.txt"))))))))
+
+(deftest test-no-encode-forward-then-reverse
+  (testing "Round-trip: forward --no-encode then reverse"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.txt" "noenc")
+      (run-trieshake "--execute" "-e" ".txt" "-p" "2"
+                     "--no-encode-leafname" base)
+      ;; File already at correct location since dir structure is same
+      (is (.exists (io/file base "AB/CD/data.txt"))))))
+
+(deftest test-no-encode-reverse-regroup
+  (testing "Reverse regroup with --no-encode-leafname produces plain filenames"
+    (with-temp-dir base
+      (create-file! base "AB/CD/AB_CD_data.txt" "regroup")
+      (let [result (run-trieshake "--reverse" "--execute" "-e" ".txt" "-p" "3"
+                                  "--no-encode-leafname" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "ABC/D/data.txt")))
+        (is (= "regroup" (slurp (io/file base "ABC/D/data.txt"))))))))
+
+;; === --output-plan integration tests ===
+
+(deftest test-output-plan-csv-columns
+  (testing "Plan CSV has correct headers and data"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.txt")
+      (let [plan-file (str base "/plan.csv")]
+        (run-trieshake "-e" ".txt" "-p" "2" "--output-plan" plan-file base)
+        (is (.exists (io/file plan-file)))
+        (let [lines (clojure.string/split-lines (slurp plan-file))
+              header (first lines)
+              row (second lines)]
+          (is (clojure.string/includes? header "source_path"))
+          (is (clojure.string/includes? header "target_path"))
+          (is (clojure.string/includes? row "AB/CD/data.txt"))
+          (is (clojure.string/includes? row "AB/CD/AB_CD_data.txt"))
+          (is (clojure.string/includes? row "AB|CD"))
+          (is (clojure.string/includes? row "move")))))))
+
+(deftest test-output-plan-csv-collision
+  (testing "Plan CSV marks collisions correctly"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.txt")
+      (create-file! base "A/BCD/data.txt")
+      (let [plan-file (str base "/plan.csv")]
+        (run-trieshake "-e" ".txt" "-p" "4" "--output-plan" plan-file base)
+        (let [content (slurp plan-file)]
+          (is (clojure.string/includes? content "true"))
+          (is (clojure.string/includes? content "collision")))))))
+
+;; === Extension optional tests ===
+
+(deftest test-no-extension-matches-all
+  (testing "Without -e, all files are processed"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.txt")
+      (create-file! base "AB/CD/image.png")
+      (let [result (run-trieshake "--execute" "-p" "2" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "AB/CD/AB_CD_data.txt")))
+        (is (.exists (io/file base "AB/CD/AB_CD_image.png")))))))

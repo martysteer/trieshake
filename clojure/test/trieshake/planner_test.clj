@@ -190,3 +190,21 @@
       (is (= ["AB" "CD"] (:chunks result)))
       (is (= "AB/CD" (:target-dir result)))
       (is (= "AB_CD_data.txt" (:target-filename result))))))
+
+;; === --no-encode-leafname tests ===
+
+(deftest test-forward-no-encode
+  (testing "Forward with encode-leafname=false uses plain leafname"
+    (let [result (planner/compute-target "BL/00/01/file.txt" 3 ".txt"
+                                         :encode-leafname false)]
+      (is (= "BL0/001" (:target-dir result)))
+      (is (= "file.txt" (:target-filename result)))
+      (is (= "file.txt" (:leafname result))))))
+
+(deftest test-reverse-regroup-no-encode
+  (testing "Reverse regroup with encode-leafname=false uses plain leafname"
+    (let [result (planner/compute-reverse-target "AB/CD/AB_CD_data.txt" ".txt"
+                                                  :new-prefix-length 3
+                                                  :encode-leafname false)]
+      (is (= "data.txt" (:target-filename result)))
+      (is (= "ABC/D" (:target-dir result))))))
