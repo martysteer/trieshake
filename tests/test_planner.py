@@ -2,7 +2,12 @@
 
 from pathlib import PurePosixPath
 
-from trieshake.planner import chunk_string, compute_target, detect_collisions
+from trieshake.planner import (
+    chunk_string,
+    compute_target,
+    compute_reverse_target,
+    detect_collisions,
+)
 
 
 # === chunk_string tests ===
@@ -157,6 +162,94 @@ class TestDetectCollisions:
         ]
         resolved = detect_collisions(plans)
         assert resolved[1].target_filename == "AB_record--collision1.mets.xml"
+
+
+# === compute_reverse_target tests ===
+
+
+class TestComputeReverseTarget:
+    """Tests for compute_reverse_target — reverse mode planning."""
+
+    def test_spec_reverse_strip_prefix(self):
+        """SPEC: reverse without -p strips prefix, keeps dir structure."""
+        result = compute_reverse_target(
+            PurePosixPath(
+                "BL00/0001/0600/001/BL00_0001_0600_001_report.txt"
+            ),
+            extension=".txt",
+        )
+        assert result.leafname == "report.txt"
+        assert result.target_dir == PurePosixPath("BL00/0001/0600/001")
+        assert result.target_filename == "report.txt"
+
+    def test_spec_reverse_with_regroup(self):
+        """SPEC: reverse with -p 3 regroups in single pass."""
+        result = compute_reverse_target(
+            PurePosixPath(
+                "BL00/0001/0600/001/BL00_0001_0600_001_report.txt"
+            ),
+            extension=".txt",
+            new_prefix_length=3,
+        )
+        assert result.leafname == "report.txt"
+        assert result.concat_string == "BL0000010600001"
+        assert result.chunks == ["BL0", "000", "010", "600", "001"]
+        assert result.target_dir == PurePosixPath("BL0/000/010/600/001")
+        assert result.target_filename == "BL0_000_010_600_001_report.txt"
+
+    def test_reverse_skips_non_encoded_file(self):
+        """File whose name doesn't match dir prefix is skipped (returns None)."""
+        result = compute_reverse_target(
+            PurePosixPath("BL00/0001/random_file.txt"),
+            extension=".txt",
+        )
+        assert result is None
+
+    def test_reverse_strips_collision_suffix(self):
+        """SPEC: --collisionN suffix stripped from leafname during reverse."""
+        result = compute_reverse_target(
+            PurePosixPath("ABCD/ABCD_data--collision1.txt"),
+            extension=".txt",
+        )
+        assert result.leafname == "data.txt"
+        assert result.target_filename == "data.txt"
+
+    def test_reverse_collision_with_collision_dir(self):
+        """SPEC example: collision file in collisions subdirectory."""
+        result = compute_reverse_target(
+            PurePosixPath("ABCD/collisions/ABCD_data--collision1.txt"),
+            extension=".txt",
+        )
+        assert result is not None
+        assert result.leafname == "data.txt"
+        assert result.target_dir == PurePosixPath("ABCD")
+
+    def test_reverse_preserves_underscores_in_leafname(self):
+        """Underscores in original leafname survive round-trip."""
+        result = compute_reverse_target(
+            PurePosixPath("AB/CD/AB_CD_my_data.txt"),
+            extension=".txt",
+        )
+        assert result.leafname == "my_data.txt"
+
+    def test_reverse_root_level_skipped(self):
+        """File at root level (no dir path) is skipped in reverse."""
+        result = compute_reverse_target(
+            PurePosixPath("report.txt"),
+            extension=".txt",
+        )
+        assert result is None
+
+    def test_reverse_regroup_clean_modulo(self):
+        """Regroup where concat string cleanly divides by new prefix."""
+        result = compute_reverse_target(
+            PurePosixPath("AB/CD/AB_CD_data.txt"),
+            extension=".txt",
+            new_prefix_length=2,
+        )
+        assert result.chunks == ["AB", "CD"]
+        assert result.target_dir == PurePosixPath("AB/CD")
+        assert result.target_filename == "AB_CD_data.txt"
 
 
 def _make_plan(source, target, extension=""):

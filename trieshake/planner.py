@@ -84,6 +84,89 @@ def compute_target(
     )
 
 
+def _strip_collision_suffix(leafname: str) -> str:
+    """Remove --collisionN suffix from a leafname.
+
+    E.g. 'data--collision1.txt' -> 'data.txt'
+    """
+    import re
+
+    return re.sub(r"--collision\d+", "", leafname)
+
+
+def compute_reverse_target(
+    rel_path: PurePosixPath,
+    extension: str,
+    new_prefix_length: int | None = None,
+    encode_leafname: bool = True,
+) -> PlanEntry | None:
+    """Compute the reverse-mode target for a file at rel_path.
+
+    Args:
+        rel_path: Relative path of the file (within base_dir).
+        extension: The file extension being processed.
+        new_prefix_length: If provided, regroup at this prefix length.
+        encode_leafname: Whether to encode prefix in output filename.
+
+    Returns:
+        PlanEntry for the reverse target, or None if file should be skipped.
+    """
+    parts = list(rel_path.parts)
+    filename = parts[-1]
+    dir_parts = parts[:-1]
+
+    # Root-level files are skipped in reverse mode
+    if not dir_parts:
+        return None
+
+    # Filter out 'collisions' directory segments (not prefix groups)
+    prefix_groups = [d for d in dir_parts if d != "collisions"]
+
+    if not prefix_groups:
+        return None
+
+    # Build expected prefix from directory parts
+    expected_prefix = "_".join(prefix_groups) + "_"
+
+    # Validate filename starts with expected prefix
+    if not filename.startswith(expected_prefix):
+        return None
+
+    # Strip prefix to recover leafname
+    leafname = filename[len(expected_prefix) :]
+
+    # Strip collision suffix
+    leafname = _strip_collision_suffix(leafname)
+
+    # Rejoin prefix groups into concat string
+    concat_string = "".join(prefix_groups)
+
+    if new_prefix_length is not None:
+        # Regroup: re-chunk at new prefix length
+        chunks = chunk_string(concat_string, new_prefix_length)
+        target_dir = PurePosixPath(*chunks) if chunks else PurePosixPath(".")
+
+        if encode_leafname and chunks:
+            target_filename = "_".join(chunks) + "_" + leafname
+        else:
+            target_filename = leafname
+    else:
+        # No regroup: keep same directory, just strip prefix from filename
+        chunks = prefix_groups
+        target_dir = PurePosixPath(*prefix_groups)
+        target_filename = leafname
+
+    return PlanEntry(
+        source_path=rel_path,
+        target_dir=target_dir,
+        target_filename=target_filename,
+        chunks=chunks,
+        concat_string=concat_string,
+        leafname=leafname,
+        extension=extension,
+    )
+
+
 def _collision_filename(filename: str, extension: str, n: int) -> str:
     """Insert --collisionN before the extension."""
     stem, ext = _strip_extension(filename, extension)

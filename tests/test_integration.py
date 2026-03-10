@@ -1,4 +1,4 @@
-"""Integration tests for forward mode — end-to-end with temp directories."""
+"""Integration tests — end-to-end with temp directories."""
 
 import tempfile
 from pathlib import Path
@@ -126,3 +126,114 @@ class TestForwardIntegration:
             # Second run — file is already there (though will re-process)
             result = main(["--execute", "-e", ".txt", "-p", "2", str(base)])
             assert result == 0
+
+
+class TestReverseIntegration:
+    """End-to-end reverse mode tests."""
+
+    def test_reverse_strips_prefix(self):
+        """Reverse without -p strips encoded prefix from filenames."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            # Create already-forward-encoded structure
+            _create_file(
+                base, "BL00/0001/0600/001/BL00_0001_0600_001_report.txt", "content"
+            )
+
+            result = main(
+                ["--reverse", "--execute", "-e", ".txt", str(base)]
+            )
+
+            assert result == 0
+            assert (base / "BL00/0001/0600/001/report.txt").exists()
+            assert (base / "BL00/0001/0600/001/report.txt").read_text() == "content"
+            assert not (
+                base / "BL00/0001/0600/001/BL00_0001_0600_001_report.txt"
+            ).exists()
+
+    def test_reverse_with_regroup(self):
+        """Reverse with -p 3 regroups from p=4 to p=3 in single pass."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(
+                base, "BL00/0001/0600/001/BL00_0001_0600_001_report.txt"
+            )
+
+            result = main(
+                ["--reverse", "--execute", "-e", ".txt", "-p", "3", str(base)]
+            )
+
+            assert result == 0
+            expected = base / "BL0/000/010/600/001/BL0_000_010_600_001_report.txt"
+            assert expected.exists()
+
+    def test_reverse_strips_collision_suffix(self):
+        """Reverse strips --collisionN suffixes from filenames."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "ABCD/ABCD_data--collision1.txt", "coll")
+
+            result = main(
+                ["--reverse", "--execute", "-e", ".txt", str(base)]
+            )
+
+            assert result == 0
+            assert (base / "ABCD/data.txt").exists()
+            assert (base / "ABCD/data.txt").read_text() == "coll"
+
+    def test_forward_then_reverse_roundtrip(self):
+        """Forward at p=4 then reverse restores plain leafnames."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "BL/00/01/file.txt", "original")
+
+            # Forward
+            main(["--execute", "-e", ".txt", "-p", "4", str(base)])
+            assert (base / "BL00/01/BL00_01_file.txt").exists()
+
+            # Reverse
+            main(["--reverse", "--execute", "-e", ".txt", str(base)])
+            assert (base / "BL00/01/file.txt").exists()
+            assert (base / "BL00/01/file.txt").read_text() == "original"
+
+    def test_forward_reverse_regroup_roundtrip(self):
+        """Forward p=4 -> reverse -p 3: single-pass regroup."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/EF/data.txt", "roundtrip")
+
+            # Forward at p=4
+            main(["--execute", "-e", ".txt", "-p", "4", str(base)])
+            assert (base / "ABCD/EF/ABCD_EF_data.txt").exists()
+
+            # Reverse with regroup at p=3
+            main(["--reverse", "--execute", "-e", ".txt", "-p", "3", str(base)])
+            expected = base / "ABC/DEF/ABC_DEF_data.txt"
+            assert expected.exists()
+            assert expected.read_text() == "roundtrip"
+
+    def test_reverse_dry_run(self):
+        """Reverse dry run makes no changes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/AB_CD_data.txt")
+
+            result = main(["--reverse", "-e", ".txt", str(base)])
+
+            assert result == 0
+            # Original still in place
+            assert (base / "AB/CD/AB_CD_data.txt").exists()
+
+    def test_reverse_skips_non_encoded(self):
+        """Reverse skips files that don't match their directory prefix."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/random_file.txt")
+
+            result = main(
+                ["--reverse", "--execute", "-e", ".txt", str(base)]
+            )
+
+            assert result == 0
+            # File is untouched (skipped)
+            assert (base / "AB/CD/random_file.txt").exists()
