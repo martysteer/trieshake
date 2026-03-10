@@ -30,6 +30,12 @@ BL00/0001/0600/001/report.txt
 BL0/000/010/600/001/BL0_000_010_600_001_report.txt
 ```
 
+## How it works
+
+trieshake treats the filesystem as a [radix trie](https://en.wikipedia.org/wiki/Radix_tree). Directory names are fixed-width slices of a key (the concatenated path segments), and files are leaf nodes. Changing the prefix-length rebalances the trie at a new radix — a wider radix gives a shallower tree, a narrower one gives a deeper tree.
+
+Collisions (when different source paths produce the same target) are handled with `--collisionN` filename suffixes. In practice, collisions only occur when source directories have variable-width segments that concatenate ambiguously.
+
 ## Installation
 
 ```bash
@@ -81,18 +87,14 @@ trieshake /data -e .txt -p 4 --no-encode-leafname --execute
 | `--output-plan FILE` | Save move plan as CSV for review. |
 | `--execute` | Actually move files. Without this, nothing changes. |
 
-## How it works
-
-trieshake treats the filesystem as a [radix trie](https://en.wikipedia.org/wiki/Radix_tree). Directory names are fixed-width slices of a key (the concatenated path segments), and files are leaf nodes. Changing the prefix-length rebalances the trie at a new radix — a wider radix gives a shallower tree, a narrower one gives a deeper tree.
-
-Collisions (when different source paths produce the same target) are handled with `--collisionN` filename suffixes. In practice, collisions only occur when source directories have variable-width segments that concatenate ambiguously.
-
 ## Docs
 
-- **[SPEC.md](SPEC.md)** — Full specification with worked examples and edge cases
-- **[BUILDPLAN-python.md](BUILDPLAN-python.md)** — Python implementation plan
-- **[BUILDPLAN-clojure.md](BUILDPLAN-clojure.md)** — Clojure implementation plan
+- **[SPEC.md](./synthetic-build-docs/SPEC.md)** — Full specification with worked examples and edge cases
+- **[BUILDPLAN-python.md](./synthetic-build-docs/BUILDPLAN-python.md)** — Python implementation plan
+- **[BUILDPLAN-clojure.md](./synthetic-build-docs/BUILDPLAN-clojure.md)** — Clojure implementation plan
 
 ## License
 
-TBD
+[CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+
+Author(s): martysteer and Claude Opus 4.6
