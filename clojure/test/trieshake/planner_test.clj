@@ -130,3 +130,63 @@
                  (make-plan "b/record.mets.xml" "AB/AB_record.mets.xml" ".mets.xml")]
           resolved (planner/detect-collisions plans)]
       (is (= "AB_record--collision1.mets.xml" (:target-filename (second resolved)))))))
+
+;; === compute-reverse-target tests ===
+
+(deftest test-reverse-strip-prefix
+  (testing "SPEC: reverse without -p strips prefix, keeps dir structure"
+    (let [result (planner/compute-reverse-target
+                  "BL00/0001/0600/001/BL00_0001_0600_001_report.txt" ".txt")]
+      (is (= "report.txt" (:leafname result)))
+      (is (= "BL00/0001/0600/001" (:target-dir result)))
+      (is (= "report.txt" (:target-filename result))))))
+
+(deftest test-reverse-with-regroup
+  (testing "SPEC: reverse with -p 3 regroups in single pass"
+    (let [result (planner/compute-reverse-target
+                  "BL00/0001/0600/001/BL00_0001_0600_001_report.txt" ".txt"
+                  :new-prefix-length 3)]
+      (is (= "report.txt" (:leafname result)))
+      (is (= "BL0000010600001" (:concat-string result)))
+      (is (= ["BL0" "000" "010" "600" "001"] (:chunks result)))
+      (is (= "BL0/000/010/600/001" (:target-dir result)))
+      (is (= "BL0_000_010_600_001_report.txt" (:target-filename result))))))
+
+(deftest test-reverse-skips-non-encoded
+  (testing "File whose name doesn't match dir prefix is skipped"
+    (is (nil? (planner/compute-reverse-target
+               "BL00/0001/random_file.txt" ".txt")))))
+
+(deftest test-reverse-strips-collision-suffix
+  (testing "--collisionN suffix stripped from leafname during reverse"
+    (let [result (planner/compute-reverse-target
+                  "ABCD/ABCD_data--collision1.txt" ".txt")]
+      (is (= "data.txt" (:leafname result)))
+      (is (= "data.txt" (:target-filename result))))))
+
+(deftest test-reverse-collision-with-collision-dir
+  (testing "Collision file in collisions subdirectory"
+    (let [result (planner/compute-reverse-target
+                  "ABCD/collisions/ABCD_data--collision1.txt" ".txt")]
+      (is (some? result))
+      (is (= "data.txt" (:leafname result)))
+      (is (= "ABCD" (:target-dir result))))))
+
+(deftest test-reverse-preserves-underscores
+  (testing "Underscores in original leafname survive round-trip"
+    (let [result (planner/compute-reverse-target
+                  "AB/CD/AB_CD_my_data.txt" ".txt")]
+      (is (= "my_data.txt" (:leafname result))))))
+
+(deftest test-reverse-root-level-skipped
+  (testing "File at root level is skipped in reverse"
+    (is (nil? (planner/compute-reverse-target "report.txt" ".txt")))))
+
+(deftest test-reverse-regroup-clean-modulo
+  (testing "Regroup where concat string cleanly divides by new prefix"
+    (let [result (planner/compute-reverse-target
+                  "AB/CD/AB_CD_data.txt" ".txt"
+                  :new-prefix-length 2)]
+      (is (= ["AB" "CD"] (:chunks result)))
+      (is (= "AB/CD" (:target-dir result)))
+      (is (= "AB_CD_data.txt" (:target-filename result))))))

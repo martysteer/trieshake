@@ -104,3 +104,69 @@
       (is (.exists (io/file base "AB/CD/AB_CD_data.txt")))
       (let [result (run-trieshake "--execute" "-e" ".txt" "-p" "2" base)]
         (is (= 0 result))))))
+
+;; === Reverse integration tests ===
+
+(deftest test-reverse-strips-prefix
+  (testing "Reverse without -p strips encoded prefix from filenames"
+    (with-temp-dir base
+      (create-file! base "BL00/0001/0600/001/BL00_0001_0600_001_report.txt" "content")
+      (let [result (run-trieshake "--reverse" "--execute" "-e" ".txt" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "BL00/0001/0600/001/report.txt")))
+        (is (= "content" (slurp (io/file base "BL00/0001/0600/001/report.txt"))))
+        (is (not (.exists (io/file base "BL00/0001/0600/001/BL00_0001_0600_001_report.txt"))))))))
+
+(deftest test-reverse-with-regroup
+  (testing "Reverse with -p 3 regroups from p=4 to p=3 in single pass"
+    (with-temp-dir base
+      (create-file! base "BL00/0001/0600/001/BL00_0001_0600_001_report.txt")
+      (let [result (run-trieshake "--reverse" "--execute" "-e" ".txt" "-p" "3" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "BL0/000/010/600/001/BL0_000_010_600_001_report.txt")))))))
+
+(deftest test-reverse-strips-collision-suffix
+  (testing "Reverse strips --collisionN suffixes from filenames"
+    (with-temp-dir base
+      (create-file! base "ABCD/ABCD_data--collision1.txt" "coll")
+      (let [result (run-trieshake "--reverse" "--execute" "-e" ".txt" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "ABCD/data.txt")))
+        (is (= "coll" (slurp (io/file base "ABCD/data.txt"))))))))
+
+(deftest test-forward-then-reverse-roundtrip
+  (testing "Forward at p=4 then reverse restores plain leafnames"
+    (with-temp-dir base
+      (create-file! base "BL/00/01/file.txt" "original")
+      (run-trieshake "--execute" "-e" ".txt" "-p" "4" base)
+      (is (.exists (io/file base "BL00/01/BL00_01_file.txt")))
+      (run-trieshake "--reverse" "--execute" "-e" ".txt" base)
+      (is (.exists (io/file base "BL00/01/file.txt")))
+      (is (= "original" (slurp (io/file base "BL00/01/file.txt")))))))
+
+(deftest test-forward-reverse-regroup-roundtrip
+  (testing "Forward p=4 -> reverse -p 3: single-pass regroup"
+    (with-temp-dir base
+      (create-file! base "AB/CD/EF/data.txt" "roundtrip")
+      (run-trieshake "--execute" "-e" ".txt" "-p" "4" base)
+      (is (.exists (io/file base "ABCD/EF/ABCD_EF_data.txt")))
+      (run-trieshake "--reverse" "--execute" "-e" ".txt" "-p" "3" base)
+      (let [expected (io/file base "ABC/DEF/ABC_DEF_data.txt")]
+        (is (.exists expected))
+        (is (= "roundtrip" (slurp expected)))))))
+
+(deftest test-reverse-dry-run
+  (testing "Reverse dry run makes no changes"
+    (with-temp-dir base
+      (create-file! base "AB/CD/AB_CD_data.txt")
+      (let [result (run-trieshake "--reverse" "-e" ".txt" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "AB/CD/AB_CD_data.txt")))))))
+
+(deftest test-reverse-skips-non-encoded
+  (testing "Reverse skips files that don't match their directory prefix"
+    (with-temp-dir base
+      (create-file! base "AB/CD/random_file.txt")
+      (let [result (run-trieshake "--reverse" "--execute" "-e" ".txt" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "AB/CD/random_file.txt")))))))
