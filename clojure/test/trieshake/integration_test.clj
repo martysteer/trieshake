@@ -243,3 +243,91 @@
         (is (= 0 result))
         (is (.exists (io/file base "AB/CD/AB_CD_data.txt")))
         (is (.exists (io/file base "AB/CD/AB_CD_image.png")))))))
+
+;; === Edge case integration tests ===
+
+(deftest test-root-level-files-forward
+  (testing "Root-level files use filename stem as concat string"
+    (with-temp-dir base
+      (create-file! base "mydata.txt" "root")
+      (let [result (run-trieshake "--execute" "-e" ".txt" "-p" "3" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "myd/ata/myd_ata_mydata.txt")))
+        (is (= "root" (slurp (io/file base "myd/ata/myd_ata_mydata.txt"))))))))
+
+(deftest test-underscores-in-leafname-roundtrip
+  (testing "Underscores in original leafname survive forward -> reverse"
+    (with-temp-dir base
+      (create-file! base "AB/CD/my_data_file.txt" "underscores")
+      (run-trieshake "--execute" "-e" ".txt" "-p" "4" base)
+      (is (.exists (io/file base "ABCD/ABCD_my_data_file.txt")))
+      (run-trieshake "--reverse" "--execute" "-e" ".txt" base)
+      (is (.exists (io/file base "ABCD/my_data_file.txt")))
+      (is (= "underscores" (slurp (io/file base "ABCD/my_data_file.txt")))))))
+
+(deftest test-hidden-files-ignored
+  (testing "Hidden files like .DS_Store are not processed"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.txt")
+      (create-file! base "AB/CD/.DS_Store" "hidden")
+      (let [result (run-trieshake "--execute" "-e" ".txt" "-p" "2" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "AB/CD/AB_CD_data.txt")))))))
+
+(deftest test-empty-dir-not-left-behind
+  (testing "After moves, directories with only hidden files are cleaned up"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.txt")
+      (create-file! base "AB/CD/.DS_Store" "hidden")
+      (run-trieshake "--execute" "-e" ".txt" "-p" "4" base)
+      (is (not (.exists (io/file base "AB/CD")))))))
+
+(deftest test-multi-extension-forward-and-reverse
+  (testing "Multi-part extensions like .mets.xml work correctly"
+    (with-temp-dir base
+      (create-file! base "BL/00/01/record.mets.xml" "multi")
+      (run-trieshake "--execute" "-e" ".mets.xml" "-p" "3" base)
+      (is (.exists (io/file base "BL0/001/BL0_001_record.mets.xml")))
+      (run-trieshake "--reverse" "--execute" "-e" ".mets.xml" base)
+      (is (.exists (io/file base "BL0/001/record.mets.xml")))
+      (is (= "multi" (slurp (io/file base "BL0/001/record.mets.xml")))))))
+
+(deftest test-extension-case-insensitive
+  (testing "Extension matching is case-insensitive"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.TXT" "upper")
+      (let [result (run-trieshake "--execute" "-e" ".txt" "-p" "2" base)]
+        (is (= 0 result))
+        (is (.exists (io/file base "AB/CD/AB_CD_data.TXT")))))))
+
+(deftest test-collision-forward-then-reverse
+  (testing "Collision files from forward mode have suffixes stripped in reverse"
+    (with-temp-dir base
+      (create-file! base "AB/CD/data.txt" "first")
+      (create-file! base "A/BCD/data.txt" "second")
+      (run-trieshake "--execute" "-e" ".txt" "-p" "4" base)
+      (is (.exists (io/file base "ABCD/ABCD_data.txt")))
+      (is (.exists (io/file base "ABCD/ABCD_data--collision1.txt")))
+      (run-trieshake "--reverse" "--execute" "-e" ".txt" base)
+      (is (.exists (io/file base "ABCD/data.txt"))))))
+
+(deftest test-invalid-directory-returns-error
+  (testing "Non-existent directory returns exit code 1"
+    (let [result (run-trieshake "--execute" "-e" ".txt" "/nonexistent/path")]
+      (is (= 1 result)))))
+
+(deftest test-large-scale-file-count
+  (testing "Generate many files and verify counts match"
+    (with-temp-dir base
+      (doseq [i (range 100)]
+        (let [group (format "%04d" i)]
+          (create-file! base
+                        (str "G" (subs group 0 2) "/" (subs group 2) "/file_" i ".txt")
+                        (str "data" i))))
+      (let [result (run-trieshake "--execute" "-e" ".txt" "-p" "3" base)]
+        (is (= 0 result))
+        ;; Count all .txt files in result
+        (let [txt-files (->> (file-seq (io/file base))
+                             (filter #(.isFile %))
+                             (filter #(clojure.string/ends-with? (.getName %) ".txt")))]
+          (is (= 100 (count txt-files))))))))

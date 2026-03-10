@@ -208,3 +208,66 @@
                                                   :encode-leafname false)]
       (is (= "data.txt" (:target-filename result)))
       (is (= "ABC/D" (:target-dir result))))))
+
+;; === Edge case tests ===
+
+(deftest test-forward-root-file-short-stem
+  (testing "Root-level file with stem shorter than prefix length"
+    (let [result (planner/compute-target "ab.txt" 4 ".txt")]
+      (is (= "ab" (:concat-string result)))
+      (is (= ["ab"] (:chunks result)))
+      (is (= "ab" (:target-dir result)))
+      (is (= "ab_ab.txt" (:target-filename result))))))
+
+(deftest test-forward-root-file-multi-extension
+  (testing "Root-level file with multi-part extension"
+    (let [result (planner/compute-target "record.mets.xml" 3 ".mets.xml")]
+      (is (= "record" (:concat-string result)))
+      (is (= ["rec" "ord"] (:chunks result)))
+      (is (= "record.mets.xml" (:leafname result))))))
+
+(deftest test-forward-underscores-in-leafname
+  (testing "Underscores in original leafname are preserved"
+    (let [result (planner/compute-target "AB/CD/my_data_file.txt" 4 ".txt")]
+      (is (= "my_data_file.txt" (:leafname result)))
+      (is (= "ABCD_my_data_file.txt" (:target-filename result))))))
+
+(deftest test-reverse-underscores-roundtrip
+  (testing "Underscores in leafname survive forward -> reverse"
+    (let [forward (planner/compute-target "AB/CD/my_data.txt" 4 ".txt")
+          reverse (planner/compute-reverse-target
+                   (str (:target-dir forward) "/" (:target-filename forward)) ".txt")]
+      (is (some? reverse))
+      (is (= "my_data.txt" (:leafname reverse))))))
+
+(deftest test-concat-string-single-segment
+  (testing "Single parent segment produces single chunk"
+    (let [result (planner/compute-target "A/file.txt" 4 ".txt")]
+      (is (= "A" (:concat-string result)))
+      (is (= ["A"] (:chunks result))))))
+
+(deftest test-collision-suffix-no-extension
+  (testing "Collision suffix on file with no extension"
+    (let [plans [(make-plan "a/Makefile" "AB/AB_Makefile")
+                 (make-plan "b/Makefile" "AB/AB_Makefile")]
+          resolved (planner/detect-collisions plans)]
+      (is (= "AB_Makefile--collision1" (:target-filename (second resolved)))))))
+
+(deftest test-collision-suffix-multiple-dots
+  (testing "Collision suffix on file like archive.tar.gz"
+    (let [plans [(make-plan "a/archive.tar.gz" "AB/AB_archive.tar.gz" ".tar.gz")
+                 (make-plan "b/archive.tar.gz" "AB/AB_archive.tar.gz" ".tar.gz")]
+          resolved (planner/detect-collisions plans)]
+      (is (= "AB_archive--collision1.tar.gz" (:target-filename (second resolved)))))))
+
+(deftest test-reverse-collision3-stripped
+  (testing "Only one --collisionN is present; it gets stripped"
+    (let [result (planner/compute-reverse-target "AB/AB_data--collision3.txt" ".txt")]
+      (is (some? result))
+      (is (= "data.txt" (:leafname result))))))
+
+(deftest test-forward-empty-extension-matches-all
+  (testing "Forward with empty extension uses stem as concat for root files"
+    (let [result (planner/compute-target "AB/CD/Makefile" 4 "")]
+      (is (= "Makefile" (:leafname result)))
+      (is (= "ABCD" (:concat-string result))))))
