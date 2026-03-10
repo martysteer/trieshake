@@ -30,6 +30,24 @@ BL00/0001/0600/001/report.txt
 BL0/000/010/600/001/BL0_000_010_600_001_report.txt
 ```
 
+## Installation
+
+```bash
+# Install from source (editable/development mode)
+pip install -e .
+
+# Or install directly
+pip install .
+```
+
+Once installed, the `trieshake` command is available. You can also run it as a module:
+
+```bash
+python -m trieshake --help
+```
+
+Requires Python 3.9+.
+
 ## Usage
 
 ```bash
