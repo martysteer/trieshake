@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trieshake"
+version = "0.1.0"
+description = "Reorganize files into grouped, prefix-based directory trees"
+requires-python = ">=3.9"
+
+[project.scripts]
+trieshake = "trieshake.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
