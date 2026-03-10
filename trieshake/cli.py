@@ -37,6 +37,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Reverse mode: strip encoded prefixes. Combine with -p to regroup.",
     )
     parser.add_argument(
+        "--no-encode-leafname",
+        action="store_true",
+        help="Do not prepend prefix groups to the leafname.",
+    )
+    parser.add_argument(
         "--execute",
         action="store_true",
         help="Actually move files (default: dry run).",
@@ -86,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 2. Plan
     reverse = getattr(args, "reverse", False)
+    encode_leafname = not getattr(args, "no_encode_leafname", False)
     # In reverse mode, -p is optional (None = strip only, value = regroup)
     # We need to distinguish "user passed -p" from "default 4"
     user_gave_p = _user_gave_prefix_length(argv or sys.argv[1:])
@@ -99,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
                 rel_posix,
                 extension=extension or "",
                 new_prefix_length=new_p,
+                encode_leafname=encode_leafname,
             )
             if plan is None:
                 continue  # Skip files that aren't encoded
@@ -107,6 +114,7 @@ def main(argv: list[str] | None = None) -> int:
                 rel_posix,
                 prefix_length=prefix_length,
                 extension=extension or "",
+                encode_leafname=encode_leafname,
             )
         plans.append(plan)
 

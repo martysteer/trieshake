@@ -1,5 +1,6 @@
 """Integration tests — end-to-end with temp directories."""
 
+import csv
 import tempfile
 from pathlib import Path
 
@@ -237,3 +238,112 @@ class TestReverseIntegration:
             assert result == 0
             # File is untouched (skipped)
             assert (base / "AB/CD/random_file.txt").exists()
+
+
+class TestNoEncodeLeafnameIntegration:
+    """Tests for --no-encode-leafname flag."""
+
+    def test_forward_no_encode(self):
+        """Forward with --no-encode-leafname uses plain filenames."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "BL/00/01/file.txt", "plain")
+
+            result = main([
+                "--execute", "-e", ".txt", "-p", "3",
+                "--no-encode-leafname", str(base),
+            ])
+
+            assert result == 0
+            assert (base / "BL0/001/file.txt").exists()
+            assert (base / "BL0/001/file.txt").read_text() == "plain"
+
+    def test_forward_no_encode_then_reverse(self):
+        """Round-trip: forward --no-encode then reverse restores leafnames."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.txt", "noenc")
+
+            # Forward without encoding
+            main([
+                "--execute", "-e", ".txt", "-p", "2",
+                "--no-encode-leafname", str(base),
+            ])
+            assert (base / "AB/CD/data.txt").exists()
+            # File didn't move — same dir, same name (already correct)
+
+    def test_reverse_regroup_no_encode(self):
+        """Reverse regroup with --no-encode-leafname produces plain filenames."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/AB_CD_data.txt", "regroup")
+
+            result = main([
+                "--reverse", "--execute", "-e", ".txt", "-p", "3",
+                "--no-encode-leafname", str(base),
+            ])
+
+            assert result == 0
+            assert (base / "ABC/D/data.txt").exists()
+            assert (base / "ABC/D/data.txt").read_text() == "regroup"
+
+
+class TestOutputPlanIntegration:
+    """Tests for --output-plan CSV export."""
+
+    def test_plan_csv_columns(self):
+        """Plan CSV has correct headers and data."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.txt")
+            plan_file = base / "plan.csv"
+
+            main(["-e", ".txt", "-p", "2", "--output-plan", str(plan_file), str(base)])
+
+            assert plan_file.exists()
+            with open(plan_file, encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+
+            assert len(rows) == 1
+            row = rows[0]
+            assert row["source_path"] == "AB/CD/data.txt"
+            assert row["target_path"] == "AB/CD/AB_CD_data.txt"
+            assert row["leafname"] == "data.txt"
+            assert row["concat_string"] == "ABCD"
+            assert row["prefix_groups"] == "AB|CD"
+            assert row["action"] == "move"
+
+    def test_plan_csv_with_collision(self):
+        """Plan CSV marks collisions correctly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.txt")
+            _create_file(base, "A/BCD/data.txt")
+            plan_file = base / "plan.csv"
+
+            main(["-e", ".txt", "-p", "4", "--output-plan", str(plan_file), str(base)])
+
+            with open(plan_file, encoding="utf-8") as f:
+                rows = list(csv.DictReader(f))
+
+            collision_rows = [r for r in rows if r["is_collision"] == "true"]
+            assert len(collision_rows) == 1
+            assert collision_rows[0]["action"] == "collision"
+
+
+class TestExtensionOptionalIntegration:
+    """Tests for -e being optional (match all files)."""
+
+    def test_no_extension_matches_all(self):
+        """Without -e, all files are processed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            _create_file(base, "AB/CD/data.txt")
+            _create_file(base, "AB/CD/image.png")
+
+            result = main(["--execute", "-p", "2", str(base)])
+
+            assert result == 0
+            assert (base / "AB/CD/AB_CD_data.txt").exists()
+            assert (base / "AB/CD/AB_CD_image.png").exists()

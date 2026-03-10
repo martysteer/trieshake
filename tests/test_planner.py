@@ -252,6 +252,33 @@ class TestComputeReverseTarget:
         assert result.target_filename == "AB_CD_data.txt"
 
 
+class TestNoEncodeLeafname:
+    """Tests for --no-encode-leafname mode in planner."""
+
+    def test_forward_no_encode(self):
+        """Forward with encode_leafname=False uses plain leafname."""
+        result = compute_target(
+            PurePosixPath("BL/00/01/file.txt"),
+            prefix_length=3,
+            extension=".txt",
+            encode_leafname=False,
+        )
+        assert result.target_dir == PurePosixPath("BL0/001")
+        assert result.target_filename == "file.txt"
+        assert result.leafname == "file.txt"
+
+    def test_reverse_regroup_no_encode(self):
+        """Reverse regroup with encode_leafname=False uses plain leafname."""
+        result = compute_reverse_target(
+            PurePosixPath("AB/CD/AB_CD_data.txt"),
+            extension=".txt",
+            new_prefix_length=3,
+            encode_leafname=False,
+        )
+        assert result.target_filename == "data.txt"
+        assert result.target_dir == PurePosixPath("ABC/D")
+
+
 def _make_plan(source, target, extension=""):
     """Helper to create a minimal plan entry for collision testing."""
     from trieshake.planner import PlanEntry
