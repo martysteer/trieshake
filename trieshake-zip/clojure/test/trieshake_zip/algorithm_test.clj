@@ -1,0 +1,60 @@
+(ns trieshake-zip.algorithm-test
+  (:require [clojure.test :refer :all]
+            [trieshake-zip.algorithm :as alg]))
+
+(deftest test-chunk-string
+  (testing "Empty string produces empty vector"
+    (is (= [] (alg/chunk-string "" 4))))
+
+  (testing "String shorter than prefix-length produces single chunk"
+    (is (= ["AB"] (alg/chunk-string "AB" 4))))
+
+  (testing "String equal to prefix-length produces single chunk"
+    (is (= ["ABCD"] (alg/chunk-string "ABCD" 4))))
+
+  (testing "String longer than prefix-length splits with remainder"
+    (is (= ["ABCD" "EF"] (alg/chunk-string "ABCDEF" 4))))
+
+  (testing "Clean multiple produces exact chunks"
+    (is (= ["AB" "CD" "EF"] (alg/chunk-string "ABCDEF" 2)))))
+
+(deftest test-parse-zip-path
+  (testing "Path with multiple parent dirs"
+    (is (= {:parents ["BL" "00" "01"] :leafname "file.txt"}
+           (alg/parse-zip-path "BL/00/01/file.txt"))))
+
+  (testing "Root-level file (no parents)"
+    (is (= {:parents [] :leafname "file.txt"}
+           (alg/parse-zip-path "file.txt"))))
+
+  (testing "Path with leading slash stripped"
+    (is (= {:parents ["dir"] :leafname "file.txt"}
+           (alg/parse-zip-path "/dir/file.txt"))))
+
+  (testing "Deeply nested path"
+    (is (= {:parents ["a" "b" "c" "d"] :leafname "data.csv"}
+           (alg/parse-zip-path "a/b/c/d/data.csv")))))
+
+(deftest test-compute-target-path
+  (testing "Forward transformation with encoded leafname"
+    (let [result (alg/compute-target-path ["BL" "00" "01"] "file.txt" 4 true)]
+      (is (= "BL00/01" (:target-dir result)))
+      (is (= "BL00_01_file.txt" (:target-filename result)))
+      (is (= ["BL00" "01"] (:chunks result)))
+      (is (= "BL0001" (:concat-string result)))))
+
+  (testing "Forward transformation without encoded leafname"
+    (let [result (alg/compute-target-path ["BL" "00"] "data.csv" 4 false)]
+      (is (= "BL00" (:target-dir result)))
+      (is (= "data.csv" (:target-filename result)))))
+
+  (testing "Root-level file uses leafname stem as concat string"
+    (let [result (alg/compute-target-path [] "report.txt" 4 true)]
+      (is (= "repo/rt" (:target-dir result)))
+      (is (= "repo_rt_report.txt" (:target-filename result)))
+      (is (= "report" (:concat-string result)))))
+
+  (testing "Prefix-length 3 produces different chunking"
+    (let [result (alg/compute-target-path ["AB" "CD" "EF"] "x.txt" 3 true)]
+      (is (= "ABC/DEF" (:target-dir result)))
+      (is (= "ABC_DEF_x.txt" (:target-filename result))))))
