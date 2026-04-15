@@ -18,33 +18,36 @@
      :max-dirs - maximum parent directories to include (default 10)
      :max-files - maximum total files to include (default 100)"
   [source-zip output-zip {:keys [max-dirs max-files] :or {max-dirs 10 max-files 100}}]
-  (with-open [zis (ZipInputStream. (FileInputStream. source-zip))
-              zos (ZipOutputStream. (FileOutputStream. output-zip))]
-    (loop [dirs-seen #{}
-           files-written 0]
-      (if-let [entry (.getNextEntry zis)]
-        (let [entry-name (.getName entry)]
-          ;; Skip directory entries
-          (if (.endsWith entry-name "/")
-            (recur dirs-seen files-written)
-            (let [parent-dir (extract-parent-dir entry-name)
-                  new-dirs-seen (if parent-dir (conj dirs-seen parent-dir) dirs-seen)]
-              ;; Check limits
-              (if (and (<= (count new-dirs-seen) max-dirs)
-                       (< files-written max-files))
-                (do
-                  ;; Copy entry
-                  (.putNextEntry zos (ZipEntry. entry-name))
-                  (let [buffer (byte-array 8192)]
-                    (loop []
-                      (let [n (.read zis buffer)]
-                        (when (pos? n)
-                          (.write zos buffer 0 n)
-                          (recur)))))
-                  (.closeEntry zos)
-                  (recur new-dirs-seen (inc files-written)))
-                ;; Limits reached
-                nil))))
-        ;; Done
-        {:dirs-included (count dirs-seen)
-         :files-written files-written}))))
+  (let [result
+        (with-open [zis (ZipInputStream. (FileInputStream. source-zip))
+                    zos (ZipOutputStream. (FileOutputStream. output-zip))]
+          (loop [dirs-seen #{}
+                 files-written 0]
+            (if-let [entry (.getNextEntry zis)]
+              (let [entry-name (.getName entry)]
+                ;; Skip directory entries
+                (if (.endsWith entry-name "/")
+                  (recur dirs-seen files-written)
+                  (let [parent-dir (extract-parent-dir entry-name)
+                        new-dirs-seen (if parent-dir (conj dirs-seen parent-dir) dirs-seen)]
+                    ;; Check limits
+                    (if (and (<= (count new-dirs-seen) max-dirs)
+                             (< files-written max-files))
+                      (do
+                        ;; Copy entry
+                        (.putNextEntry zos (ZipEntry. entry-name))
+                        (let [buffer (byte-array 8192)]
+                          (loop []
+                            (let [n (.read zis buffer)]
+                              (when (pos? n)
+                                (.write zos buffer 0 n)
+                                (recur)))))
+                        (.closeEntry zos)
+                        (recur new-dirs-seen (inc files-written)))
+                      ;; Limits reached - return result
+                      {:dirs-included (count dirs-seen)
+                       :files-written files-written}))))
+              ;; Done - no more entries
+              {:dirs-included (count dirs-seen)
+               :files-written files-written})))]
+    result))
