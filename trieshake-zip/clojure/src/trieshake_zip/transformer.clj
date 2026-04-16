@@ -54,21 +54,23 @@
               (recur processed)
               (let [;; Parse path
                     {:keys [parents leafname]} (alg/parse-zip-path entry-name)
-                    ;; Split at depth if requested
-                    {:keys [prefix to-transform]} (alg/split-at-depth parents start-depth)
-                    ;; Compute target (transform only the part below start-depth)
-                    {:keys [target-dir target-filename]}
-                    (alg/compute-target-path to-transform leafname prefix-length encode-leafname prefix)
-                    ;; Check collision
-                    full-target (str target-dir "/" target-filename)
-                    final-filename (track-collision collision-tracker full-target)
-                    ;; Track if collision occurred
-                    _ (when (not= final-filename target-filename)
-                        (swap! collisions conj {:source entry-name
-                                                :target full-target
-                                                :actual (str target-dir "/" final-filename)}))
-                    ;; Write entry
-                    new-entry-name (str target-dir "/" final-filename)]
+                    ;; Check if file is above start-depth threshold
+                    below-threshold? (< (count parents) start-depth)
+                    ;; If below threshold, pass through unchanged
+                    new-entry-name (if below-threshold?
+                                     entry-name
+                                     ;; Otherwise, split and transform
+                                     (let [{:keys [prefix to-transform]} (alg/split-at-depth parents start-depth)
+                                           {:keys [target-dir target-filename]}
+                                           (alg/compute-target-path to-transform leafname prefix-length encode-leafname prefix)
+                                           full-target (str target-dir "/" target-filename)
+                                           final-filename (track-collision collision-tracker full-target)]
+                                       ;; Track if collision occurred
+                                       (when (not= final-filename target-filename)
+                                         (swap! collisions conj {:source entry-name
+                                                                 :target full-target
+                                                                 :actual (str target-dir "/" final-filename)}))
+                                       (str target-dir "/" final-filename)))]
                 (.putNextEntry zos (ZipEntry. new-entry-name))
                 (let [buffer (byte-array 8192)]
                   (loop []
