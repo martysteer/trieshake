@@ -58,3 +58,25 @@
     (let [result (alg/compute-target-path ["AB" "CD" "EF"] "x.txt" 3 true)]
       (is (= "ABC/DEF" (:target-dir result)))
       (is (= "ABC_DEF_x.txt" (:target-filename result))))))
+
+(deftest test-strip-prefix-from-parents
+  (testing "Strip 0 components returns parents unchanged"
+    (is (= ["A" "B" "C"] (alg/strip-prefix-from-parents ["A" "B" "C"] 0))))
+
+  (testing "Strip 1 component from 3"
+    (is (= ["B" "C"] (alg/strip-prefix-from-parents ["A" "B" "C"] 1))))
+
+  (testing "Strip 2 components from 4"
+    (is (= ["C" "D"] (alg/strip-prefix-from-parents ["A" "B" "C" "D"] 2))))
+
+  (testing "Strip all components"
+    (is (= [] (alg/strip-prefix-from-parents ["A" "B"] 2))))
+
+  (testing "Strip more than available returns empty"
+    (is (= [] (alg/strip-prefix-from-parents ["A" "B"] 5))))
+
+  (testing "Strip from empty parents returns empty"
+    (is (= [] (alg/strip-prefix-from-parents [] 2))))
+
+  (testing "Negative N returns parents unchanged"
+    (is (= ["A" "B"] (alg/strip-prefix-from-parents ["A" "B"] -1)))))

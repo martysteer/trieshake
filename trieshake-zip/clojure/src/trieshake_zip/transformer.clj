@@ -37,10 +37,11 @@
 
    Options:
      :prefix-length - chunk size (default 4)
+     :strip-prefix - strip N leading path components (default 0)
      :encode-leafname - prepend prefix to filename (default true)
      :report - path to write collision report (optional)"
-  [source-zip output-zip {:keys [prefix-length encode-leafname report]
-                          :or {prefix-length 4 encode-leafname true}}]
+  [source-zip output-zip {:keys [prefix-length strip-prefix encode-leafname report]
+                          :or {prefix-length 4 strip-prefix 0 encode-leafname true}}]
   (let [collision-tracker (atom {})
         collisions (atom [])]
     (with-open [zis (ZipInputStream. (FileInputStream. source-zip))
@@ -53,6 +54,8 @@
               (recur processed)
               (let [;; Parse path
                     {:keys [parents leafname]} (alg/parse-zip-path entry-name)
+                    ;; Strip prefix if requested
+                    parents (alg/strip-prefix-from-parents parents strip-prefix)
                     ;; Compute target
                     {:keys [target-dir target-filename]}
                     (alg/compute-target-path parents leafname prefix-length encode-leafname)

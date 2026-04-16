@@ -28,6 +28,16 @@
     {:parents (vec (butlast parts))
      :leafname (last parts)}))
 
+(defn strip-prefix-from-parents
+  "Strip N leading path components from parents vector.
+   Returns stripped parents (may be empty if N >= parent count)."
+  [parents n]
+  (if (and (pos? n) (>= (count parents) n))
+    (vec (drop n parents))
+    (if (pos? n)
+      [] ;; n > parent count, strip all
+      parents)))
+
 (defn- strip-extension
   "Strip extension from filename, return [stem ext].
    Handles multi-part extensions like .mets.xml."
