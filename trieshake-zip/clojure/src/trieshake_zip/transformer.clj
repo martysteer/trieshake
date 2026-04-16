@@ -92,3 +92,81 @@
                            @collisions))))
             result))))
     ))
+
+(defn preview-transform
+  "Preview transformation without writing output. Shows what would happen.
+
+   Options: same as transform"
+  [source-zip {:keys [prefix-length start-depth encode-leafname]
+               :or {prefix-length 4 start-depth 0 encode-leafname true}}]
+  (let [collision-tracker (atom {})
+        collisions (atom [])
+        transformations (atom [])]
+    (with-open [zis (ZipInputStream. (FileInputStream. source-zip))]
+      (loop [processed 0
+             skipped 0]
+        (if-let [entry (.getNextEntry zis)]
+          (let [entry-name (.getName entry)]
+            ;; Skip directory entries
+            (if (.endsWith entry-name "/")
+              (recur processed (inc skipped))
+              (let [;; Parse path
+                    {:keys [parents leafname]} (alg/parse-zip-path entry-name)
+                    ;; Check if file is above start-depth threshold
+                    below-threshold? (< (count parents) start-depth)]
+                (if below-threshold?
+                  ;; Pass through unchanged
+                  (do
+                    (swap! transformations conj {:source entry-name
+                                                 :target entry-name
+                                                 :action "pass-through"})
+                    (recur (inc processed) skipped))
+                  ;; Transform
+                  (let [{:keys [prefix to-transform]} (alg/split-at-depth parents start-depth)
+                        {:keys [target-dir target-filename]}
+                        (alg/compute-target-path to-transform leafname prefix-length encode-leafname prefix)
+                        full-target (str target-dir "/" target-filename)
+                        final-filename (track-collision collision-tracker full-target)
+                        new-entry-name (str target-dir "/" final-filename)]
+                    ;; Track collision if occurred
+                    (when (not= final-filename target-filename)
+                      (swap! collisions conj {:source entry-name
+                                              :target full-target
+                                              :actual new-entry-name}))
+                    ;; Record transformation
+                    (swap! transformations conj {:source entry-name
+                                                 :target new-entry-name
+                                                 :action (if (not= final-filename target-filename)
+                                                           "transform-collision"
+                                                           "transform")})
+                    (recur (inc processed) skipped))))))
+          ;; Done - print preview
+          (let [result {:processed processed
+                        :skipped skipped
+                        :collisions (count @collisions)
+                        :transformations @transformations}]
+            ;; Print preview
+            (println "\n=== DRY RUN: Preview of transformations ===\n")
+            (println (format "Files to process: %d" processed))
+            (println (format "Directory entries skipped: %d" skipped))
+            (println (format "Collisions: %d\n" (count @collisions)))
+
+            ;; Show sample transformations
+            (println "Sample transformations (first 20):")
+            (doseq [{:keys [source target action]} (take 20 @transformations)]
+              (case action
+                "pass-through" (println (format "  PASS: %s" source))
+                "transform" (println (format "  %s\n    -> %s" source target))
+                "transform-collision" (println (format "  %s\n    -> %s [COLLISION]" source target))))
+
+            (when (> (count @transformations) 20)
+              (println (format "\n... and %d more transformations" (- (count @transformations) 20))))
+
+            ;; Show collisions if any
+            (when (seq @collisions)
+              (println "\nCollisions:")
+              (doseq [{:keys [source target actual]} @collisions]
+                (println (format "  %s\n    -> %s\n    ACTUAL: %s" source target actual))))
+
+            result)))
+      )))

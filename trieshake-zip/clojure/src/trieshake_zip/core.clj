@@ -21,6 +21,7 @@
     :parse-fn #(Integer/parseInt %)]
    [nil "--no-encode-leafname" "Use plain leafnames (transform mode)"]
    [nil "--report FILE" "Write collision report (transform mode)"]
+   [nil "--execute" "Actually perform transformation (transform mode, default: dry run)"]
    ["-h" "--help" "Show help"]])
 
 (defn- usage [summary]
@@ -51,8 +52,11 @@
       (not= 2 (count arguments))
       {:exit-message "Error: Must specify mode and input zip\n\n" :ok? false}
 
-      (not (:output options))
-      {:exit-message "Error: --output is required\n\n" :ok? false}
+      ;; --output required for sample mode or transform with --execute
+      (and (not (:output options))
+           (or (= "sample" (first arguments))
+               (and (= "transform" (first arguments)) (:execute options))))
+      {:exit-message "Error: --output is required (unless transform without --execute)\n\n" :ok? false}
 
       :else
       {:mode (first arguments)
@@ -78,14 +82,21 @@
                              (:dirs-included result))))
 
           "transform"
-          (let [result (transformer/transform input (:output options)
-                                              {:prefix-length (:prefix-length options)
-                                               :start-depth (:start-depth options)
-                                               :encode-leafname (not (:no-encode-leafname options))
-                                               :report (:report options)})]
-            (println (format "Transformed %d files (%d collisions)"
-                             (:processed result)
-                             (:collisions result))))
+          (if (:execute options)
+            ;; Execute mode - actually transform
+            (let [result (transformer/transform input (:output options)
+                                                {:prefix-length (:prefix-length options)
+                                                 :start-depth (:start-depth options)
+                                                 :encode-leafname (not (:no-encode-leafname options))
+                                                 :report (:report options)})]
+              (println (format "\nTransformed %d files (%d collisions)"
+                               (:processed result)
+                               (:collisions result))))
+            ;; Dry run mode - preview only
+            (transformer/preview-transform input
+                                           {:prefix-length (:prefix-length options)
+                                            :start-depth (:start-depth options)
+                                            :encode-leafname (not (:no-encode-leafname options))}))
 
           (exit 1 (str "Error: Unknown mode '" mode "'")))
 
