@@ -62,6 +62,24 @@ Or during development: `lein run /data -e .txt -p 4 --execute`
 
 Zero external dependencies (Clojure core only).
 
+## trieshake-zip
+
+Companion tool for applying trieshake transformations to zip archives without disk extraction.
+
+**Use case:** Transform multi-gigabyte zip files in-memory, avoiding disk space consumption.
+
+See [trieshake-zip/clojure/README.md](trieshake-zip/clojure/README.md) for details.
+
+```bash
+# Create sample from large archive
+java -jar trieshake-zip/clojure/target/uberjar/trieshake-zip-0.1.0-standalone.jar \
+  sample METADATA.zip -o sample.zip
+
+# Transform sample
+java -jar trieshake-zip/clojure/target/uberjar/trieshake-zip-0.1.0-standalone.jar \
+  transform sample.zip -o transformed.zip -p 4
+```
+
 ## Usage
 
 ```bash
@@ -113,10 +131,14 @@ trieshake/
 │   ├── pyproject.toml
 │   ├── trieshake/
 │   └── tests/
-└── clojure/                 # Clojure implementation
-    ├── project.clj
-    ├── src/trieshake/
-    └── test/trieshake/
+├── clojure/                 # Clojure implementation
+│   ├── project.clj
+│   ├── src/trieshake/
+│   └── test/trieshake/
+└── trieshake-zip/           # Zip archive tool
+    └── clojure/
+        ├── src/trieshake_zip/
+        └── test/trieshake_zip/
 ```
 
 ## License
