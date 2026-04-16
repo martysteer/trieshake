@@ -5,7 +5,7 @@
             :url "https://creativecommons.org/licenses/by-sa/4.0/"}
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [org.clojure/tools.cli "1.0.219"]]
-  :main trieshake-zip.core
+  :main ^:skip-aot trieshake-zip.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
