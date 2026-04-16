@@ -20,6 +20,8 @@
     :default 10
     :parse-fn #(Integer/parseInt %)]
    [nil "--no-encode-leafname" "Use plain leafnames (transform mode)"]
+   [nil "--exclude PATTERN" "Exclude files matching glob pattern (transform mode, repeatable)"
+    :assoc-fn (fn [m k v] (update m k (fnil conj []) v))]
    [nil "--report FILE" "Write collision report (transform mode)"]
    [nil "--execute" "Actually perform transformation (transform mode, default: dry run)"]
    ["-h" "--help" "Show help"]])
@@ -88,15 +90,18 @@
                                                 {:prefix-length (:prefix-length options)
                                                  :start-depth (:start-depth options)
                                                  :encode-leafname (not (:no-encode-leafname options))
+                                                 :exclude (:exclude options)
                                                  :report (:report options)})]
-              (println (format "\nTransformed %d files (%d collisions)"
+              (println (format "\nTransformed %d files (%d collisions, %d excluded)"
                                (:processed result)
-                               (:collisions result))))
+                               (:collisions result)
+                               (:excluded result))))
             ;; Dry run mode - preview only
             (transformer/preview-transform input
                                            {:prefix-length (:prefix-length options)
                                             :start-depth (:start-depth options)
-                                            :encode-leafname (not (:no-encode-leafname options))}))
+                                            :encode-leafname (not (:no-encode-leafname options))
+                                            :exclude (:exclude options)}))
 
           (exit 1 (str "Error: Unknown mode '" mode "'")))
 

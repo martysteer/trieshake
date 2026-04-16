@@ -94,3 +94,31 @@
     (let [result (alg/compute-target-path ["BL" "00"] "data.csv" 4 false [])]
       (is (= "BL00" (:target-dir result)))
       (is (= "data.csv" (:target-filename result))))))
+
+(deftest test-matches-glob
+  (testing "Exact match"
+    (is (alg/matches-glob? "file.txt" "file.txt")))
+
+  (testing "Wildcard match"
+    (is (alg/matches-glob? ".DS_Store" "*.DS_Store"))
+    (is (alg/matches-glob? "METADATA/.DS_Store" "**/.DS_Store")))
+
+  (testing "No match"
+    (is (not (alg/matches-glob? "file.txt" "*.pdf")))
+    (is (not (alg/matches-glob? "METADATA/file.txt" "*.DS_Store"))))
+
+  (testing "Pattern with path"
+    (is (alg/matches-glob? "METADATA/SOBEKCM/file.txt" "METADATA/**"))))
+
+(deftest test-excluded
+  (testing "No patterns returns false"
+    (is (not (alg/excluded? "file.txt" []))))
+
+  (testing "Matches one pattern"
+    (is (alg/excluded? ".DS_Store" ["*.DS_Store" "*.tmp"])))
+
+  (testing "Matches second pattern"
+    (is (alg/excluded? "temp.tmp" ["*.DS_Store" "*.tmp"])))
+
+  (testing "Matches none"
+    (is (not (alg/excluded? "file.txt" ["*.DS_Store" "*.tmp"])))))

@@ -39,19 +39,29 @@
      :prefix-length - chunk size (default 4)
      :start-depth - keep first N path components, transform below (default 0)
      :encode-leafname - prepend prefix to filename (default true)
+     :exclude - vector of glob patterns to exclude (optional)
      :report - path to write collision report (optional)"
-  [source-zip output-zip {:keys [prefix-length start-depth encode-leafname report]
-                          :or {prefix-length 4 start-depth 0 encode-leafname true}}]
+  [source-zip output-zip {:keys [prefix-length start-depth encode-leafname exclude report]
+                          :or {prefix-length 4 start-depth 0 encode-leafname true exclude []}}]
   (let [collision-tracker (atom {})
         collisions (atom [])]
     (with-open [zis (ZipInputStream. (FileInputStream. source-zip))
                 zos (ZipOutputStream. (FileOutputStream. output-zip))]
-      (loop [processed 0]
+      (loop [processed 0
+             excluded 0]
         (if-let [entry (.getNextEntry zis)]
           (let [entry-name (.getName entry)]
-            ;; Skip directory entries
-            (if (.endsWith entry-name "/")
-              (recur processed)
+            (cond
+              ;; Skip directory entries
+              (.endsWith entry-name "/")
+              (recur processed excluded)
+
+              ;; Skip excluded files
+              (alg/excluded? entry-name exclude)
+              (recur processed (inc excluded))
+
+              ;; Process file
+              :else
               (let [;; Parse path
                     {:keys [parents leafname]} (alg/parse-zip-path entry-name)
                     ;; Check if file is above start-depth threshold
@@ -79,9 +89,10 @@
                         (.write zos buffer 0 n)
                         (recur)))))
                 (.closeEntry zos)
-                (recur (inc processed)))))
+                (recur (inc processed) excluded))))
           ;; Done
           (let [result {:processed processed
+                        :excluded excluded
                         :collisions (count @collisions)}]
             ;; Write collision report if requested
             (when (and report (seq @collisions))
@@ -97,19 +108,32 @@
   "Preview transformation without writing output. Shows what would happen.
 
    Options: same as transform"
-  [source-zip {:keys [prefix-length start-depth encode-leafname]
-               :or {prefix-length 4 start-depth 0 encode-leafname true}}]
+  [source-zip {:keys [prefix-length start-depth encode-leafname exclude]
+               :or {prefix-length 4 start-depth 0 encode-leafname true exclude []}}]
   (let [collision-tracker (atom {})
         collisions (atom [])
         transformations (atom [])]
     (with-open [zis (ZipInputStream. (FileInputStream. source-zip))]
       (loop [processed 0
-             skipped 0]
+             skipped 0
+             excluded-count 0]
         (if-let [entry (.getNextEntry zis)]
           (let [entry-name (.getName entry)]
-            ;; Skip directory entries
-            (if (.endsWith entry-name "/")
-              (recur processed (inc skipped))
+            (cond
+              ;; Skip directory entries
+              (.endsWith entry-name "/")
+              (recur processed (inc skipped) excluded-count)
+
+              ;; Skip excluded files
+              (alg/excluded? entry-name exclude)
+              (do
+                (swap! transformations conj {:source entry-name
+                                             :target entry-name
+                                             :action "excluded"})
+                (recur processed skipped (inc excluded-count)))
+
+              ;; Process file
+              :else
               (let [;; Parse path
                     {:keys [parents leafname]} (alg/parse-zip-path entry-name)
                     ;; Check if file is above start-depth threshold
@@ -120,7 +144,7 @@
                     (swap! transformations conj {:source entry-name
                                                  :target entry-name
                                                  :action "pass-through"})
-                    (recur (inc processed) skipped))
+                    (recur (inc processed) skipped excluded-count))
                   ;; Transform
                   (let [{:keys [prefix to-transform]} (alg/split-at-depth parents start-depth)
                         {:keys [target-dir target-filename]}
@@ -139,22 +163,25 @@
                                                  :action (if (not= final-filename target-filename)
                                                            "transform-collision"
                                                            "transform")})
-                    (recur (inc processed) skipped))))))
+                    (recur (inc processed) skipped excluded-count))))))
           ;; Done - print preview
           (let [result {:processed processed
                         :skipped skipped
+                        :excluded excluded-count
                         :collisions (count @collisions)
                         :transformations @transformations}]
             ;; Print preview
             (println "\n=== DRY RUN: Preview of transformations ===\n")
             (println (format "Files to process: %d" processed))
             (println (format "Directory entries skipped: %d" skipped))
+            (println (format "Files excluded: %d" excluded-count))
             (println (format "Collisions: %d\n" (count @collisions)))
 
             ;; Show sample transformations
             (println "Sample transformations (first 20):")
             (doseq [{:keys [source target action]} (take 20 @transformations)]
               (case action
+                "excluded" (println (format "  EXCL: %s" source))
                 "pass-through" (println (format "  PASS: %s" source))
                 "transform" (println (format "  %s\n    -> %s" source target))
                 "transform-collision" (println (format "  %s\n    -> %s [COLLISION]" source target))))

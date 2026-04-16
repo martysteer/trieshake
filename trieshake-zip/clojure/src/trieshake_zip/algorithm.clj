@@ -1,6 +1,24 @@
 (ns trieshake-zip.algorithm
   "Path computation functions for trieshake algorithm.
-   Pure functions adapted from trieshake.planner.")
+   Pure functions adapted from trieshake.planner."
+  (:import [java.nio.file FileSystems]))
+
+(defn matches-glob?
+  "Check if path matches a glob pattern.
+   Uses Java NIO glob syntax: *, **, ?, [abc], {a,b,c}."
+  [path pattern]
+  (try
+    (let [matcher (.getPathMatcher (FileSystems/getDefault)
+                                   (str "glob:" pattern))]
+      (.matches matcher (.getPath (FileSystems/getDefault) path (make-array String 0))))
+    (catch Exception _
+      false)))
+
+(defn excluded?
+  "Check if path matches any exclusion pattern."
+  [path exclusion-patterns]
+  (when (seq exclusion-patterns)
+    (some #(matches-glob? path %) exclusion-patterns)))
 
 (defn chunk-string
   "Split a string into chunks of n characters, with a shorter remainder if needed."
