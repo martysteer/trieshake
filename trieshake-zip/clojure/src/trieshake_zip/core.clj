@@ -10,7 +10,7 @@
    ["-p" "--prefix-length N" "Characters per chunk (transform mode, default 4)"
     :default 4
     :parse-fn #(Integer/parseInt %)]
-   [nil "--strip-prefix N" "Strip N leading path components (transform mode, default 0)"
+   [nil "--start-depth N" "Keep first N path levels, transform below (transform mode, default 0)"
     :default 0
     :parse-fn #(Integer/parseInt %)]
    [nil "--max-files N" "Max files to extract (sample mode, default 100)"
@@ -80,7 +80,7 @@
           "transform"
           (let [result (transformer/transform input (:output options)
                                               {:prefix-length (:prefix-length options)
-                                               :strip-prefix (:strip-prefix options)
+                                               :start-depth (:start-depth options)
                                                :encode-leafname (not (:no-encode-leafname options))
                                                :report (:report options)})]
             (println (format "Transformed %d files (%d collisions)"

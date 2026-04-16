@@ -59,24 +59,38 @@
       (is (= "ABC/DEF" (:target-dir result)))
       (is (= "ABC_DEF_x.txt" (:target-filename result))))))
 
-(deftest test-strip-prefix-from-parents
-  (testing "Strip 0 components returns parents unchanged"
-    (is (= ["A" "B" "C"] (alg/strip-prefix-from-parents ["A" "B" "C"] 0))))
+(deftest test-split-at-depth
+  (testing "Depth 0 returns all in to-transform"
+    (is (= {:prefix [] :to-transform ["A" "B" "C"]}
+           (alg/split-at-depth ["A" "B" "C"] 0))))
 
-  (testing "Strip 1 component from 3"
-    (is (= ["B" "C"] (alg/strip-prefix-from-parents ["A" "B" "C"] 1))))
+  (testing "Depth 1 splits at first component"
+    (is (= {:prefix ["A"] :to-transform ["B" "C"]}
+           (alg/split-at-depth ["A" "B" "C"] 1))))
 
-  (testing "Strip 2 components from 4"
-    (is (= ["C" "D"] (alg/strip-prefix-from-parents ["A" "B" "C" "D"] 2))))
+  (testing "Depth 2 splits at second component"
+    (is (= {:prefix ["A" "B"] :to-transform ["C" "D"]}
+           (alg/split-at-depth ["A" "B" "C" "D"] 2))))
 
-  (testing "Strip all components"
-    (is (= [] (alg/strip-prefix-from-parents ["A" "B"] 2))))
+  (testing "Depth equal to parent count puts all in prefix"
+    (is (= {:prefix ["A" "B"] :to-transform []}
+           (alg/split-at-depth ["A" "B"] 2))))
 
-  (testing "Strip more than available returns empty"
-    (is (= [] (alg/strip-prefix-from-parents ["A" "B"] 5))))
+  (testing "Depth greater than parent count puts all in prefix"
+    (is (= {:prefix ["A" "B"] :to-transform []}
+           (alg/split-at-depth ["A" "B"] 5))))
 
-  (testing "Strip from empty parents returns empty"
-    (is (= [] (alg/strip-prefix-from-parents [] 2))))
+  (testing "Negative depth returns all in to-transform"
+    (is (= {:prefix [] :to-transform ["A" "B"]}
+           (alg/split-at-depth ["A" "B"] -1)))))
 
-  (testing "Negative N returns parents unchanged"
-    (is (= ["A" "B"] (alg/strip-prefix-from-parents ["A" "B"] -1)))))
+(deftest test-compute-target-path-with-prefix
+  (testing "Path prefix prepended to transformed path"
+    (let [result (alg/compute-target-path ["AA" "00" "01"] "file.txt" 4 true ["METADATA" "SOBEKCM"])]
+      (is (= "METADATA/SOBEKCM/AA00/01" (:target-dir result)))
+      (is (= "AA00_01_file.txt" (:target-filename result)))))
+
+  (testing "Empty path prefix behaves normally"
+    (let [result (alg/compute-target-path ["BL" "00"] "data.csv" 4 false [])]
+      (is (= "BL00" (:target-dir result)))
+      (is (= "data.csv" (:target-filename result))))))
