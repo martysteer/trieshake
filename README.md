@@ -2,107 +2,69 @@
 
 A CLI utility for reorganizing files into prefix-based directory trees using radix trie principles.
 
-trieshake flattens directory hierarchies into fixed-width chunked directories, encoding the original path into the filename. It can also reverse the process — stripping encoded prefixes and restoring plain filenames — or regroup an existing structure at a different chunk width in a single pass.
+## What It Does
 
-## What it does
+**trieshake** reorganizes files of a given extension into grouped, prefix-based directory trees. It flattens parent directory paths into filenames using underscores, and chunks the concatenated path characters into nested directories of a configurable size.
 
-**Forward** — given files in a deep directory tree:
+### Forward Mode
 
+Given files in a deep directory tree:
 ```
 BL/00/00/01/06/00001/report.txt
 ```
 
-trieshake concatenates the path segments, chunks them at a configurable width, and produces:
-
+trieshake reorganizes them into:
 ```
 BL00/0001/0600/001/BL00_0001_0600_001_report.txt
 ```
 
-**Reverse** — strips the encoded prefix, restoring the original leafname:
+### Reverse Mode
 
-```
-BL00/0001/0600/001/report.txt
-```
+Strips the encoded prefix, restoring the original leafname and optionally re-chunking at a new width in one pass.
 
-**Regroup** — reverse and re-chunk at a new width in one pass (`--reverse -p 3`):
+### Regroup
 
-```
-BL0/000/010/600/001/BL0_000_010_600_001_report.txt
-```
+Reverse and re-chunk at a new prefix-length in a single operation.
 
-## How it works
+## Quick Start
 
-trieshake treats the filesystem as a [radix trie](https://en.wikipedia.org/wiki/Radix_tree). Directory names are fixed-width slices of a key (the concatenated path segments), and files are leaf nodes. Changing the prefix-length rebalances the trie at a new radix — a wider radix gives a shallower tree, a narrower one gives a deeper tree.
-
-Collisions (when different source paths produce the same target) are handled with `--collisionN` filename suffixes. In practice, collisions only occur when source directories have variable-width segments that concatenate ambiguously.
-
-## Implementations
-
-Two implementations, same spec, same behaviour:
-
-### Python
+### Build
 
 ```bash
-cd python
-pip install -e .
-trieshake /data -e .txt -p 4 --execute
+# Build both tools (Clojure implementations)
+make
+
+# Build Python alternative
+make trieshake-py
 ```
 
-Requires Python 3.9+. Zero external dependencies.
+Executables available in `bin/trieshake` and `bin/trieshake-zip`.
 
-### Clojure
-
-```bash
-cd clojure
-lein uberjar
-java -jar target/trieshake-0.1.0-standalone.jar /data -e .txt -p 4 --execute
-```
-
-Or during development: `lein run /data -e .txt -p 4 --execute`
-
-Zero external dependencies (Clojure core only).
-
-## trieshake-zip
-
-Companion tool for applying trieshake transformations to zip archives without disk extraction.
-
-**Use case:** Transform multi-gigabyte zip files in-memory, avoiding disk space consumption.
-
-See [trieshake-zip/clojure/README.md](trieshake-zip/clojure/README.md) for details.
-
-```bash
-# Create sample from large archive
-java -jar trieshake-zip/clojure/target/uberjar/trieshake-zip-0.1.0-standalone.jar \
-  sample METADATA.zip -o sample.zip
-
-# Transform sample
-java -jar trieshake-zip/clojure/target/uberjar/trieshake-zip-0.1.0-standalone.jar \
-  transform sample.zip -o transformed.zip -p 4
-```
-
-## Usage
+### Usage
 
 ```bash
 # Preview what would happen (default: dry run)
-trieshake /data -e .txt -p 4
+./bin/trieshake /data -e .txt -p 4
 
 # Execute
-trieshake /data -e .txt -p 4 --execute
+./bin/trieshake /data -e .txt -p 4 --execute
 
 # Reverse (strip prefixes)
-trieshake /data -e .txt --reverse --execute
+./bin/trieshake /data -e .txt --reverse --execute
 
 # Regroup from current chunking to prefix-length 3
-trieshake /data -e .txt --reverse -p 3 --execute
+./bin/trieshake /data -e .txt --reverse -p 3 --execute
 
-# Export move plan to CSV for review
-trieshake /data -e .txt -p 4 --output-plan plan.csv
+# Sample from large zip archive
+./bin/trieshake-zip sample METADATA.zip -o sample.zip
 
-# Plain leafnames (no prefix encoding)
-trieshake /data -e .txt -p 4 --no-encode-leafname --execute
+# Transform zip contents
+./bin/trieshake-zip transform sample.zip -o transformed.zip -p 4
 ```
 
 ## Options
+
+### trieshake
 
 | Flag | Description |
 |---|---|
@@ -113,36 +75,66 @@ trieshake /data -e .txt -p 4 --no-encode-leafname --execute
 | `--output-plan FILE` | Save move plan as CSV for review. |
 | `--execute` | Actually move files. Without this, nothing changes. |
 
-## Docs
+### trieshake-zip
 
-- **[SPEC.md](SPEC.md)** — Full specification with worked examples and edge cases
-- **[BUILDPLAN-python.md](BUILDPLAN-python.md)** — Python implementation plan
-- **[BUILDPLAN-clojure.md](BUILDPLAN-clojure.md)** — Clojure implementation plan
+| Flag | Description |
+|---|---|
+| `sample` | Extract subset of entries from large zip |
+| `transform` | Apply trieshake algorithm to zip contents |
+| `-o`, `--output FILE` | Output zip path (required) |
+| `-p`, `--prefix-length N` | Characters per directory chunk (default: 4) |
+| `--max-files N` | Maximum files to sample (default: 100) |
+| `--max-dirs N` | Maximum parent directories to sample (default: 10) |
+| `--no-encode-leafname` | Use plain leafnames (no prefix encoding) |
+| `--report FILE` | Write collision report to file |
 
-## Repo structure
+## Architecture
 
+trieshake treats the filesystem as a [radix trie](https://en.wikipedia.org/wiki/Radix_tree). Directory names are fixed-width slices of a key (the concatenated path segments), and files are leaf nodes. Changing the prefix-length rebalances the trie at a new radix.
+
+## Implementations
+
+**Primary (Clojure):**
+- `trieshake-clj/` — Clojure implementation of trieshake
+- `trieshake-zip-clj/` — Clojure implementation of trieshake-zip
+
+**Alternative (Python):**
+- `trieshake-py/` — Python implementation of trieshake (zero external dependencies)
+
+**Future:**
+- `trieshake-zip-py/` — Python implementation of trieshake-zip (spec available, implementation pending)
+
+## Documentation
+
+- **[docs/SPEC.md](docs/SPEC.md)** — Full algorithm specification with worked examples and edge cases
+- **[docs/trieshake-refactor-design.md](docs/trieshake-refactor-design.md)** — Repository refactor design
+- **[trieshake-clj/README.md](trieshake-clj/README.md)** — Clojure implementation build/development notes
+- **[trieshake-py/README.md](trieshake-py/README.md)** — Python implementation build/development notes
+- **[trieshake-zip-clj/README.md](trieshake-zip-clj/README.md)** — trieshake-zip build/development notes
+
+## Development
+
+### Run Tests
+
+```bash
+# All tests
+make test
+
+# Clojure only
+make test-clj
+
+# Python only
+make test-py
 ```
-trieshake/
-├── SPEC.md                  # Language-agnostic specification
-├── BUILDPLAN-python.md      # Python build plan
-├── BUILDPLAN-clojure.md     # Clojure build plan
-├── README.md
-├── python/                  # Python implementation
-│   ├── pyproject.toml
-│   ├── trieshake/
-│   └── tests/
-├── clojure/                 # Clojure implementation
-│   ├── project.clj
-│   ├── src/trieshake/
-│   └── test/trieshake/
-└── trieshake-zip/           # Zip archive tool
-    └── clojure/
-        ├── src/trieshake_zip/
-        └── test/trieshake_zip/
+
+### Clean Build
+
+```bash
+make clean
 ```
 
 ## License
 
 [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
-Author(s): martysteer and Claude
+Authors: martysteer and Claude

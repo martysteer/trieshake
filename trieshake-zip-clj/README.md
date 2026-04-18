@@ -2,25 +2,31 @@
 
 Apply trieshake algorithm to zip archives without disk extraction.
 
-## Usage
-
-### Build
+## Build
 
 ```bash
+cd trieshake-zip-clj
 lein uberjar
 ```
+
+Creates `target/uberjar/trieshake-zip-*-standalone.jar`.
+
+Or from root:
+
+```bash
+make trieshake-zip-clj
+```
+
+Creates `bin/trieshake-zip` executable wrapper.
+
+## Usage
 
 ### Sample Mode
 
 Extract subset of entries from large zip:
 
 ```bash
-# With lein
-lein run sample input.zip -o sample.zip --max-files 100 --max-dirs 10
-
-# With jar
-java -jar target/uberjar/trieshake-zip-0.1.0-standalone.jar \
-  sample input.zip -o sample.zip --max-files 100 --max-dirs 10
+./bin/trieshake-zip sample input.zip -o sample.zip --max-files 100 --max-dirs 10
 ```
 
 Options:
@@ -32,12 +38,7 @@ Options:
 Apply trieshake algorithm to reorganize zip contents:
 
 ```bash
-# With lein
-lein run transform input.zip -o output.zip -p 4
-
-# With jar
-java -jar target/uberjar/trieshake-zip-0.1.0-standalone.jar \
-  transform input.zip -o output.zip -p 4
+./bin/trieshake-zip transform input.zip -o output.zip -p 4
 ```
 
 Options:
@@ -45,35 +46,36 @@ Options:
 - `--no-encode-leafname` - Use plain leafnames (no prefix encoding)
 - `--report FILE` - Write collision report to file
 
-## Examples
+## Development
 
-```bash
-# Create sample from large archive
-lein run sample METADATA.zip -o sample.zip
-
-# Transform with default settings
-lein run transform sample.zip -o transformed.zip
-
-# Transform with prefix-length 3
-lein run transform sample.zip -o out.zip -p 3
-
-# Transform with plain leafnames
-lein run transform sample.zip -o out.zip --no-encode-leafname
-
-# Transform and save collision report
-lein run transform sample.zip -o out.zip --report collisions.txt
-```
-
-## Testing
+### Tests
 
 ```bash
 lein test
 ```
 
-## Algorithm
+### REPL
 
-See [trieshake SPEC.md](../../SPEC.md) for algorithm details.
+```bash
+lein repl
+```
 
-## License
+### Run
 
-CC-BY-SA 4.0
+```bash
+lein run sample input.zip -o output.zip
+lein run transform input.zip -o output.zip -p 4
+```
+
+## Implementation Notes
+
+- Source: `src/trieshake_zip/` — sampler, transformer, algorithm modules
+- Tests: `test/trieshake_zip/` — unit and integration tests
+- Zero external dependencies (uses Java stdlib only)
+- Streams data through memory, no disk extraction required
+
+## See Also
+
+- [Root README](../README.md) for usage examples and overview
+- [Algorithm Specification](../docs/SPEC.md) for detailed design
+- [trieshake-zip Design](../docs/trieshake-refactor-design.md) for architecture details
