@@ -14,3 +14,4 @@ target/
 
 # General
 .DS_Store
+bin/
